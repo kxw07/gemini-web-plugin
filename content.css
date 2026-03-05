@@ -1,0 +1,76 @@
+/* Styles for UI enhancements */
+.gemini-web-plugin-checkbox {
+    margin-right: 8px;
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+}
+
+.gemini-web-plugin-action-bar {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background: #f0f2f5;
+    border-bottom: 1px solid #ddd;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.gemini-web-plugin-btn {
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    background: #fff;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.gemini-web-plugin-btn-danger {
+    background: #ff4d4f;
+    color: white;
+    border-color: #ff4d4f;
+}
+
+.gemini-web-plugin-btn:hover {
+    opacity: 0.8;
+}
+
+.gemini-web-plugin-folder {
+    padding: 8px 12px;
+    margin: 2px 0;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 13px;
+    transition: background 0.2s;
+}
+
+.gemini-web-plugin-folder:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.gemini-web-plugin-folder-active {
+    background: #e6f7ff !important;
+    border-left: 3px solid #1890ff;
+}
+
+.gemini-web-plugin-move-dropdown {
+    font-size: 10px;
+    margin-left: 5px;
+    padding: 2px;
+    border: 1px solid #eee;
+    background: #fff;
+    cursor: pointer;
+    border-radius: 3px;
+    color: #666;
+}
+
+.gemini-web-plugin-hidden {
+    display: none !important;
+}
+
+#gemini-plugin-folder-container {
+    border-top: 1px solid #eee;
+    margin-top: 15px;
+    padding-top: 10px;
+}

@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Gemini Web Plugin",
+  "version": "1.0",
+  "description": "Enhances Gemini Web Version with batch delete and folder management.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://gemini.google.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ]
+    }
+  ]
+}
