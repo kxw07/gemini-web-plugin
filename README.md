@@ -27,11 +27,15 @@ To install this extension in Google Chrome, follow these steps:
 - **Storage**: Folders and mappings are persisted using `chrome.storage.local`.
 - **Dynamic UI**: Uses `MutationObserver` to handle Gemini's single-page application (SPA) updates.
 
-## Roadmap (Completed)
+## Roadmap
+
+**Completed (Phase 1):**
 - [x] Content script injection for Gemini sidebar.
 - [x] Native-styled "Batch Delete" toggle button.
 - [x] Inline checkboxes and floating action bar for batch selection.
 - [x] Automated sequential deletion with progress overlay.
-- [x] Persistent folder creation and storage.
-- [x] Chat-to-folder mapping dropdowns.
-- [x] Real-time folder filtering view.
+
+**TODO (Phase 2):**
+- [ ] Persistent folder creation and storage.
+- [ ] Chat-to-folder mapping dropdowns.
+- [ ] Real-time folder filtering view.
