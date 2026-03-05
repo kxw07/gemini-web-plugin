@@ -88,53 +88,48 @@ function injectToggleButton() {
 
   console.log('Gemini Web Plugin: Found "我的內容" button, injecting Batch Delete');
 
-  // Create a button that mirrors the native structure
-  const btn = document.createElement('a');
+  // Deep clone the entire native button — this preserves Angular's _ngcontent-* attributes
+  // which are required for scoped CSS rules to apply
+  const btn = myContentBtn.cloneNode(true);
   btn.id = 'gwp-batch-toggle';
   btn.href = 'javascript:void(0)';
-  btn.setAttribute('role', 'button');
+  btn.removeAttribute('aria-label');
+  btn.classList.add('gwp-batch-toggle');
 
-  // Copy the same classes from the native button for identical styling
-  // But add our own identifier class
-  const nativeClasses = myContentBtn.className
-    .split(/\s+/)
-    .filter(c => !c.startsWith('ng-') && c !== 'mat-mdc-tooltip-disabled')
-    .join(' ');
-  btn.className = nativeClasses + ' gwp-batch-toggle';
+  // Remove Angular internal elements (ripple, tooltip trigger, etc)
+  btn.querySelectorAll('.mat-ripple-element, .mat-mdc-button-ripple, .mdc-list-item__ripple, mat-ripple').forEach(el => el.remove());
 
-  // Build the inner HTML mirroring native structure
-  // Native: <div><mat-icon class="... google-symbols ...">history</mat-icon></div><div class="side-nav-entry-button-text">我的內容</div>
+  // Replace the icon — clear the entire icon wrapper and create fresh mat-icon
+  const allIcons = btn.querySelectorAll('mat-icon');
+  if (allIcons.length > 0) {
+    // Save metadata before clearing (clearing removes the original elements)
+    const origIcon = allIcons[0];
+    const iconClassName = origIcon.className;
+    const ngAttrs = [];
+    for (const attr of origIcon.attributes) {
+      if (attr.name.startsWith('_ngcontent') || attr.name.startsWith('_nghost')) {
+        ngAttrs.push({ name: attr.name, value: attr.value });
+      }
+    }
 
-  // Find the icon container and text container structure from native button
-  const nativeIcon = myContentBtn.querySelector('mat-icon');
-  const nativeText = myContentBtn.querySelector('[class*="side-nav-entry-button-text"], [class*="button-text"]')
-    || myContentBtn.querySelector('div:last-child')
-    || myContentBtn.querySelector('span');
+    const iconWrapper = origIcon.parentElement;
+    // Clear the wrapper completely — removes all old icons
+    iconWrapper.innerHTML = '';
 
-  if (nativeIcon && nativeIcon.parentElement) {
-    // Clone the icon wrapper div with the mat-icon inside
-    const iconWrap = nativeIcon.parentElement.cloneNode(true);
-    const iconEl = iconWrap.querySelector('mat-icon');
-    if (iconEl) iconEl.textContent = 'delete_sweep';
-    btn.appendChild(iconWrap);
-  } else {
-    // Fallback: create our own icon
-    const iconWrap = document.createElement('div');
-    iconWrap.innerHTML = '<mat-icon class="mat-icon notranslate gds-icon-l google-symbols mat-ligature-font mat-icon-no-color" role="img">delete_sweep</mat-icon>';
-    btn.appendChild(iconWrap);
+    // Create a fresh mat-icon with saved metadata
+    const newIcon = document.createElement('mat-icon');
+    newIcon.className = iconClassName;
+    ngAttrs.forEach(a => newIcon.setAttribute(a.name, a.value));
+    newIcon.setAttribute('role', 'img');
+    newIcon.textContent = 'delete';
+    iconWrapper.appendChild(newIcon);
   }
 
-  if (nativeText) {
-    const textEl = nativeText.cloneNode(false);
-    textEl.textContent = 'Batch Delete';
-    btn.appendChild(textEl);
-  } else {
-    // Fallback
-    const textDiv = document.createElement('div');
-    textDiv.className = 'side-nav-entry-button-text';
-    textDiv.textContent = 'Batch Delete';
-    btn.appendChild(textDiv);
-  }
+  // Swap the label text to "批次刪除"
+  // Try known text container first, then fall back to last div
+  const textEl = btn.querySelector('[class*="side-nav-entry-button-text"], [class*="button-text"]')
+    || btn.querySelector('div:last-child');
+  if (textEl) textEl.textContent = '批次刪除';
 
   btn.addEventListener('click', (e) => {
     e.preventDefault();
@@ -163,11 +158,9 @@ function toggleBatchMode() {
 
   if (GWP.batchMode) {
     injectCheckboxes();
-    injectSelectAllBar();
     showActionBar();
   } else {
     removeCheckboxes();
-    removeSelectAllBar();
     hideActionBar();
   }
   updateActionBar();
@@ -205,7 +198,6 @@ function injectCheckboxes() {
       }
       item.classList.toggle('gwp-selected', checkbox.checked);
       updateActionBar();
-      updateSelectAllState();
     });
 
     item.insertBefore(wrap, item.firstChild);
@@ -220,76 +212,6 @@ function removeCheckboxes() {
   });
 }
 
-// ─── Select All Bar ──────────────────────────────────────────────────────────
-
-function injectSelectAllBar() {
-  if (document.querySelector('.gwp-select-all-bar')) return;
-
-  const firstConversation = document.querySelector('a.conversation');
-  if (!firstConversation) return;
-  const listContainer = firstConversation.closest('[role="list"], mat-nav-list, infinite-scroller') || firstConversation.parentElement;
-
-  const bar = document.createElement('div');
-  bar.className = 'gwp-select-all-bar';
-
-  const label = document.createElement('label');
-  label.className = 'gwp-select-all-label';
-
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.className = 'gwp-select-all-cb';
-
-  const checkmark = document.createElement('span');
-  checkmark.className = 'gwp-checkmark gwp-checkmark-all';
-  checkmark.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
-
-  const text = document.createElement('span');
-  text.className = 'gwp-select-all-text';
-  text.textContent = 'Select All';
-
-  label.appendChild(checkbox);
-  label.appendChild(checkmark);
-  label.appendChild(text);
-  bar.appendChild(label);
-
-  label.addEventListener('click', (e) => {
-    e.preventDefault();
-    const items = getConversationItems();
-    const allSelected = GWP.selectedItems.size === items.length && items.length > 0;
-    if (allSelected) {
-      GWP.selectedItems.clear();
-      items.forEach(item => {
-        const cb = item.querySelector('.gwp-checkbox');
-        if (cb) cb.checked = false;
-        item.classList.remove('gwp-selected');
-      });
-      checkbox.checked = false;
-    } else {
-      items.forEach(item => {
-        GWP.selectedItems.add(item);
-        const cb = item.querySelector('.gwp-checkbox');
-        if (cb) cb.checked = true;
-        item.classList.add('gwp-selected');
-      });
-      checkbox.checked = true;
-    }
-    updateActionBar();
-  });
-
-  listContainer.parentElement.insertBefore(bar, listContainer);
-}
-
-function removeSelectAllBar() {
-  document.querySelectorAll('.gwp-select-all-bar').forEach(el => el.remove());
-}
-
-function updateSelectAllState() {
-  const cb = document.querySelector('.gwp-select-all-cb');
-  if (!cb) return;
-  const items = getConversationItems();
-  cb.checked = items.length > 0 && GWP.selectedItems.size === items.length;
-  cb.indeterminate = GWP.selectedItems.size > 0 && GWP.selectedItems.size < items.length;
-}
 
 // ─── Floating Action Bar ────────────────────────────────────────────────────
 
@@ -364,11 +286,8 @@ async function handleBatchDelete() {
   const items = Array.from(GWP.selectedItems);
   if (items.length === 0) return;
 
-  if (!confirm(`Delete ${items.length} conversation${items.length > 1 ? 's' : ''}?`)) return;
-
   GWP.isDeleting = true;
   hideActionBar();
-  removeSelectAllBar();
 
   let deleted = 0;
   const total = items.length;

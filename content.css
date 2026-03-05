@@ -32,36 +32,14 @@
 }
 
 /* ─── Batch Toggle (inherits native button look via cloned classes) ────────── */
+#gwp-batch-toggle {
+  text-decoration: none !important;
+  cursor: pointer;
+}
+
 .gwp-batch-toggle.gwp-active {
   background: var(--gwp-blue-selected) !important;
   color: var(--gwp-blue) !important;
-}
-
-/* ─── Select All Bar ──────────────────────────────────────────────────────── */
-.gwp-select-all-bar {
-  display: flex;
-  align-items: center;
-  padding: 4px 16px;
-  margin: 2px 8px;
-  border-radius: 8px;
-  animation: gwp-fade-in 0.15s ease;
-}
-
-.gwp-select-all-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  font-family: var(--gwp-font);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--gwp-text-secondary);
-  user-select: none;
-  padding: 4px 0;
-}
-
-.gwp-select-all-label:hover {
-  color: var(--gwp-blue);
 }
 
 /* ─── Custom Checkbox ─────────────────────────────────────────────────────── */
