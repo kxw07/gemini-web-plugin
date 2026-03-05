@@ -3,7 +3,7 @@ Enhance your Gemini Web experience with batch deletion and folder management.
 
 ## Core Functions
 ### 🗑️ Batch Delete
-Injects checkboxes into your chat list. Select multiple conversations and delete them all at once with a single click.
+Injects checkboxes into your chat list. Select multiple conversations and delete them all at once with a single click. The UI is seamlessly integrated to match Gemini's native Material Design, complete with localized confirmation dialogs and progress overlays.
 
 ### 📁 Folder Management
 Create custom folders in the sidebar. Move chats into folders using a simple dropdown and filter your view to stay organized.
@@ -29,7 +29,9 @@ To install this extension in Google Chrome, follow these steps:
 
 ## Roadmap (Completed)
 - [x] Content script injection for Gemini sidebar.
-- [x] "Select All" and "Delete Selected" action bar.
+- [x] Native-styled "Batch Delete" toggle button.
+- [x] Inline checkboxes and floating action bar for batch selection.
+- [x] Automated sequential deletion with progress overlay.
 - [x] Persistent folder creation and storage.
 - [x] Chat-to-folder mapping dropdowns.
 - [x] Real-time folder filtering view.

@@ -11,8 +11,9 @@
   --gwp-text: #1f1f1f;
   --gwp-text-secondary: #5f6368;
   --gwp-surface: #ffffff;
+  --gwp-surface-dim: #f0f4f9;
   --gwp-border: rgba(0, 0, 0, 0.08);
-  --gwp-overlay: rgba(0, 0, 0, 0.4);
+  --gwp-overlay: rgba(0, 0, 0, 0.32);
   --gwp-font: 'Google Sans', 'Roboto', -apple-system, sans-serif;
 }
 
@@ -25,13 +26,14 @@
     --gwp-red-hover: #ee675c;
     --gwp-text: #e8eaed;
     --gwp-text-secondary: #9aa0a6;
-    --gwp-surface: #1e1e1e;
+    --gwp-surface: #2d2e30;
+    --gwp-surface-dim: #1e1f20;
     --gwp-border: rgba(255, 255, 255, 0.08);
-    --gwp-overlay: rgba(0, 0, 0, 0.6);
+    --gwp-overlay: rgba(0, 0, 0, 0.5);
   }
 }
 
-/* ─── Batch Toggle (inherits native button look via cloned classes) ────────── */
+/* ─── Batch Toggle (inherits native button look via deep clone) ────────────── */
 #gwp-batch-toggle {
   text-decoration: none !important;
   cursor: pointer;
@@ -59,8 +61,7 @@
   animation: gwp-fade-in 0.15s ease;
 }
 
-.gwp-checkbox,
-.gwp-select-all-cb {
+.gwp-checkbox {
   position: absolute;
   opacity: 0;
   width: 0;
@@ -77,30 +78,27 @@
   border: 2px solid var(--gwp-text-secondary);
   border-radius: 3px;
   background: transparent;
-  transition: all 0.12s ease;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
 }
 
 .gwp-checkmark svg {
   opacity: 0;
   transform: scale(0.5);
-  transition: all 0.12s ease;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.gwp-checkbox:checked+.gwp-checkmark,
-.gwp-select-all-cb:checked+.gwp-checkmark {
+.gwp-checkbox:checked+.gwp-checkmark {
   background: var(--gwp-blue);
   border-color: var(--gwp-blue);
 }
 
-.gwp-checkbox:checked+.gwp-checkmark svg,
-.gwp-select-all-cb:checked+.gwp-checkmark svg {
+.gwp-checkbox:checked+.gwp-checkmark svg {
   opacity: 1;
   transform: scale(1);
 }
 
-.gwp-checkbox-wrap:hover .gwp-checkmark,
-.gwp-select-all-label:hover .gwp-checkmark {
+.gwp-checkbox-wrap:hover .gwp-checkmark {
   border-color: var(--gwp-blue);
 }
 
@@ -114,61 +112,62 @@ a.conversation.gwp-selected {
   background: var(--gwp-blue-selected) !important;
 }
 
-/* ─── Floating Action Bar ─────────────────────────────────────────────────── */
+/* ─── Floating Action Bar (matches native Gemini Material style) ──────────── */
 .gwp-action-bar {
-  position: absolute;
-  bottom: 12px;
-  left: 8px;
-  right: 8px;
+  padding: 8px 12px;
   z-index: 1000;
-  animation: gwp-slide-up 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: gwp-slide-up 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .gwp-action-bar-inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 6px 6px 6px 16px;
   background: var(--gwp-surface);
-  border: 1px solid var(--gwp-border);
-  border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  border-radius: 28px;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .gwp-action-count {
   font-family: var(--gwp-font);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
-  color: var(--gwp-text-secondary);
+  color: var(--gwp-text);
   white-space: nowrap;
-  padding-left: 4px;
+  letter-spacing: 0.1px;
 }
 
 .gwp-action-buttons {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
+/* Native-style text buttons */
 .gwp-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 14px;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
   border: none;
-  border-radius: 16px;
+  border-radius: 20px;
   font-family: var(--gwp-font);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.12s ease;
-  line-height: 1;
+  transition: background 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  line-height: 20px;
   white-space: nowrap;
+  letter-spacing: 0.1px;
 }
 
 .gwp-btn-cancel {
   background: transparent;
-  color: var(--gwp-text-secondary);
+  color: var(--gwp-blue);
 }
 
 .gwp-btn-cancel:hover {
@@ -176,20 +175,21 @@ a.conversation.gwp-selected {
 }
 
 .gwp-btn-delete {
-  background: var(--gwp-red);
-  color: #fff;
+  background: transparent;
+  color: var(--gwp-blue);
 }
 
 .gwp-btn-delete:hover:not(:disabled) {
-  background: var(--gwp-red-hover);
+  background: var(--gwp-blue-light);
 }
 
 .gwp-btn-delete:disabled {
+  color: var(--gwp-text-secondary);
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-/* ─── Progress Overlay ──────────────────────────────────────────────────── */
+/* ─── Progress Overlay (matches native Gemini dialog style) ────────────────── */
 .gwp-progress-overlay {
   position: fixed;
   inset: 0;
@@ -198,30 +198,34 @@ a.conversation.gwp-selected {
   align-items: center;
   justify-content: center;
   background: var(--gwp-overlay);
-  animation: gwp-fade-in 0.15s ease;
+  animation: gwp-fade-in 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .gwp-progress-card {
   background: var(--gwp-surface);
-  border-radius: 16px;
-  padding: 24px 28px;
-  min-width: 300px;
-  max-width: 380px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+  border-radius: 28px;
+  padding: 24px;
+  min-width: 320px;
+  max-width: 400px;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    0 8px 24px rgba(0, 0, 0, 0.15);
+  animation: gwp-scale-in 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .gwp-progress-title {
   font-family: var(--gwp-font);
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 18px;
+  font-weight: 400;
   color: var(--gwp-text);
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  line-height: 24px;
 }
 
 .gwp-progress-bar-wrap {
   width: 100%;
   height: 4px;
-  background: var(--gwp-border);
+  background: var(--gwp-surface-dim);
   border-radius: 2px;
   overflow: hidden;
   margin-bottom: 12px;
@@ -231,17 +235,18 @@ a.conversation.gwp-selected {
   height: 100%;
   background: var(--gwp-blue);
   border-radius: 2px;
-  transition: width 0.3s ease;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   width: 0%;
 }
 
 .gwp-progress-status {
   font-family: var(--gwp-font);
-  font-size: 12px;
+  font-size: 14px;
   color: var(--gwp-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 20px;
 }
 
 /* ─── Animations ──────────────────────────────────────────────────────────── */
@@ -258,11 +263,23 @@ a.conversation.gwp-selected {
 @keyframes gwp-slide-up {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(12px);
   }
 
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes gwp-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }

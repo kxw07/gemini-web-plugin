@@ -28,6 +28,7 @@ This project is a Google Chrome extension designed to enhance the Gemini web int
 - **Storage**: Use `chrome.storage.local` for folder hierarchies.
 
 ## Roadmap (TODO)
-- [ ] Implement robust `MutationObserver` for batch delete checkboxes.
+- [x] Implement robust `MutationObserver` for batch delete checkboxes.
+- [x] Refine "Batch Delete" UI to perfectly match native Gemini Material Design (alignment, icons, dialogs).
 - [ ] Create UI for folder creation and chat-to-folder assignment.
 - [ ] Implement background script for more complex storage sync if needed.

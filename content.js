@@ -222,10 +222,10 @@ function showActionBar() {
   bar.className = 'gwp-action-bar';
   bar.innerHTML = `
     <div class="gwp-action-bar-inner">
-      <span class="gwp-action-count">0 selected</span>
+      <span class="gwp-action-count">已選擇 0 項</span>
       <div class="gwp-action-buttons">
-        <button class="gwp-btn gwp-btn-cancel">Cancel</button>
-        <button class="gwp-btn gwp-btn-delete" disabled>Delete</button>
+        <button class="gwp-btn gwp-btn-cancel">取消</button>
+        <button class="gwp-btn gwp-btn-delete" disabled>刪除</button>
       </div>
     </div>
   `;
@@ -233,12 +233,17 @@ function showActionBar() {
   bar.querySelector('.gwp-btn-cancel').addEventListener('click', toggleBatchMode);
   bar.querySelector('.gwp-btn-delete').addEventListener('click', () => handleBatchDelete());
 
-  // Attach to the sidebar
-  const sidebar = document.querySelector('a.conversation')?.closest('nav, aside')
-    || document.querySelector('a.conversation')?.closest('[class*="side"]')
-    || document.body;
-  sidebar.style.position = 'relative';
-  sidebar.appendChild(bar);
+  // Insert before the first conversation item
+  const firstConvo = document.querySelector('a.conversation');
+  if (firstConvo) {
+    firstConvo.parentElement.insertBefore(bar, firstConvo);
+  } else {
+    // Fallback: append to sidebar
+    const sidebar = document.querySelector('a.conversation')?.closest('nav, aside')
+      || document.querySelector('a.conversation')?.closest('[class*="side"]')
+      || document.body;
+    sidebar.appendChild(bar);
+  }
 }
 
 function hideActionBar() {
@@ -249,7 +254,7 @@ function updateActionBar() {
   const count = GWP.selectedItems.size;
   const countEl = document.querySelector('.gwp-action-count');
   const deleteBtn = document.querySelector('.gwp-btn-delete');
-  if (countEl) countEl.textContent = `${count} selected`;
+  if (countEl) countEl.textContent = `已選擇 ${count} 項`;
   if (deleteBtn) deleteBtn.disabled = count === 0;
 }
 
@@ -262,7 +267,7 @@ function showProgress(current, total, title) {
     overlay.className = 'gwp-progress-overlay';
     overlay.innerHTML = `
       <div class="gwp-progress-card">
-        <div class="gwp-progress-title">Deleting conversations...</div>
+        <div class="gwp-progress-title">正在刪除對話...</div>
         <div class="gwp-progress-bar-wrap">
           <div class="gwp-progress-bar-fill"></div>
         </div>
