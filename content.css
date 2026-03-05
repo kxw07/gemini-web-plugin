@@ -1,76 +1,290 @@
-/* Styles for UI enhancements */
-.gemini-web-plugin-checkbox {
-    margin-right: 8px;
-    cursor: pointer;
-    width: 16px;
-    height: 16px;
-    vertical-align: middle;
+/* ═══════════════════════════════════════════════════════════════════════════
+   Gemini Web Plugin — Batch Delete Styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --gwp-blue: #1a73e8;
+  --gwp-blue-light: rgba(26, 115, 232, 0.08);
+  --gwp-blue-selected: rgba(26, 115, 232, 0.12);
+  --gwp-red: #d93025;
+  --gwp-red-hover: #c5221f;
+  --gwp-text: #1f1f1f;
+  --gwp-text-secondary: #5f6368;
+  --gwp-surface: #ffffff;
+  --gwp-border: rgba(0, 0, 0, 0.08);
+  --gwp-overlay: rgba(0, 0, 0, 0.4);
+  --gwp-font: 'Google Sans', 'Roboto', -apple-system, sans-serif;
 }
 
-.gemini-web-plugin-action-bar {
-    display: flex;
-    align-items: center;
-    padding: 10px;
-    background: #f0f2f5;
-    border-bottom: 1px solid #ddd;
-    gap: 10px;
-    z-index: 1000;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --gwp-blue: #8ab4f8;
+    --gwp-blue-light: rgba(138, 180, 248, 0.08);
+    --gwp-blue-selected: rgba(138, 180, 248, 0.15);
+    --gwp-red: #f28b82;
+    --gwp-red-hover: #ee675c;
+    --gwp-text: #e8eaed;
+    --gwp-text-secondary: #9aa0a6;
+    --gwp-surface: #1e1e1e;
+    --gwp-border: rgba(255, 255, 255, 0.08);
+    --gwp-overlay: rgba(0, 0, 0, 0.6);
+  }
 }
 
-.gemini-web-plugin-btn {
-    padding: 5px 10px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-    background: #fff;
-    cursor: pointer;
-    font-size: 12px;
+/* ─── Batch Toggle (inherits native button look via cloned classes) ────────── */
+.gwp-batch-toggle.gwp-active {
+  background: var(--gwp-blue-selected) !important;
+  color: var(--gwp-blue) !important;
 }
 
-.gemini-web-plugin-btn-danger {
-    background: #ff4d4f;
-    color: white;
-    border-color: #ff4d4f;
+/* ─── Select All Bar ──────────────────────────────────────────────────────── */
+.gwp-select-all-bar {
+  display: flex;
+  align-items: center;
+  padding: 4px 16px;
+  margin: 2px 8px;
+  border-radius: 8px;
+  animation: gwp-fade-in 0.15s ease;
 }
 
-.gemini-web-plugin-btn:hover {
-    opacity: 0.8;
+.gwp-select-all-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-family: var(--gwp-font);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gwp-text-secondary);
+  user-select: none;
+  padding: 4px 0;
 }
 
-.gemini-web-plugin-folder {
-    padding: 8px 12px;
-    margin: 2px 0;
-    cursor: pointer;
-    border-radius: 6px;
-    font-size: 13px;
-    transition: background 0.2s;
+.gwp-select-all-label:hover {
+  color: var(--gwp-blue);
 }
 
-.gemini-web-plugin-folder:hover {
-    background: rgba(0, 0, 0, 0.05);
+/* ─── Custom Checkbox ─────────────────────────────────────────────────────── */
+.gwp-checkbox-wrap {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  z-index: 2;
+  animation: gwp-fade-in 0.15s ease;
 }
 
-.gemini-web-plugin-folder-active {
-    background: #e6f7ff !important;
-    border-left: 3px solid #1890ff;
+.gwp-checkbox,
+.gwp-select-all-cb {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
 }
 
-.gemini-web-plugin-move-dropdown {
-    font-size: 10px;
-    margin-left: 5px;
-    padding: 2px;
-    border: 1px solid #eee;
-    background: #fff;
-    cursor: pointer;
-    border-radius: 3px;
-    color: #666;
+.gwp-checkmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--gwp-text-secondary);
+  border-radius: 3px;
+  background: transparent;
+  transition: all 0.12s ease;
+  flex-shrink: 0;
 }
 
-.gemini-web-plugin-hidden {
-    display: none !important;
+.gwp-checkmark svg {
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all 0.12s ease;
 }
 
-#gemini-plugin-folder-container {
-    border-top: 1px solid #eee;
-    margin-top: 15px;
-    padding-top: 10px;
+.gwp-checkbox:checked+.gwp-checkmark,
+.gwp-select-all-cb:checked+.gwp-checkmark {
+  background: var(--gwp-blue);
+  border-color: var(--gwp-blue);
+}
+
+.gwp-checkbox:checked+.gwp-checkmark svg,
+.gwp-select-all-cb:checked+.gwp-checkmark svg {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.gwp-checkbox-wrap:hover .gwp-checkmark,
+.gwp-select-all-label:hover .gwp-checkmark {
+  border-color: var(--gwp-blue);
+}
+
+/* ─── Conversation Item in Batch Mode ─────────────────────────────────────── */
+a.conversation.gwp-batch-item {
+  position: relative;
+  padding-left: 36px !important;
+}
+
+a.conversation.gwp-selected {
+  background: var(--gwp-blue-selected) !important;
+}
+
+/* ─── Floating Action Bar ─────────────────────────────────────────────────── */
+.gwp-action-bar {
+  position: absolute;
+  bottom: 12px;
+  left: 8px;
+  right: 8px;
+  z-index: 1000;
+  animation: gwp-slide-up 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.gwp-action-bar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--gwp-surface);
+  border: 1px solid var(--gwp-border);
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+}
+
+.gwp-action-count {
+  font-family: var(--gwp-font);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gwp-text-secondary);
+  white-space: nowrap;
+  padding-left: 4px;
+}
+
+.gwp-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gwp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 16px;
+  font-family: var(--gwp-font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.gwp-btn-cancel {
+  background: transparent;
+  color: var(--gwp-text-secondary);
+}
+
+.gwp-btn-cancel:hover {
+  background: var(--gwp-blue-light);
+}
+
+.gwp-btn-delete {
+  background: var(--gwp-red);
+  color: #fff;
+}
+
+.gwp-btn-delete:hover:not(:disabled) {
+  background: var(--gwp-red-hover);
+}
+
+.gwp-btn-delete:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ─── Progress Overlay ──────────────────────────────────────────────────── */
+.gwp-progress-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gwp-overlay);
+  animation: gwp-fade-in 0.15s ease;
+}
+
+.gwp-progress-card {
+  background: var(--gwp-surface);
+  border-radius: 16px;
+  padding: 24px 28px;
+  min-width: 300px;
+  max-width: 380px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+}
+
+.gwp-progress-title {
+  font-family: var(--gwp-font);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--gwp-text);
+  margin-bottom: 16px;
+}
+
+.gwp-progress-bar-wrap {
+  width: 100%;
+  height: 4px;
+  background: var(--gwp-border);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.gwp-progress-bar-fill {
+  height: 100%;
+  background: var(--gwp-blue);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+  width: 0%;
+}
+
+.gwp-progress-status {
+  font-family: var(--gwp-font);
+  font-size: 12px;
+  color: var(--gwp-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Animations ──────────────────────────────────────────────────────────── */
+@keyframes gwp-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes gwp-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

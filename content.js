@@ -1,216 +1,551 @@
 /**
- * Gemini Web Plugin - Content Script
+ * Gemini Web Plugin - Batch Delete Mode
+ * Automates the native delete flow for multiple conversations.
  */
 
-const SELECTORS = {
-    chatListContainer: 'nav', 
-    chatItem: '[role="listitem"]',
-    chatLink: 'a[href*="/app/chat/"]',
-    menuBtn: 'button[aria-haspopup="menu"]', // Gemini's three-dot menu
-    deleteBtnText: 'Delete', // Text in the menu to click
-    confirmDeleteBtn: 'button:contains("Delete")' // Placeholder for dialog
+const GWP = {
+  batchMode: false,
+  isDeleting: false,
+  selectedItems: new Set(),
 };
 
-let pluginData = {
-    folders: [],
-    mapping: {}, // chatId -> folderName
-    activeFolder: null
-};
+console.log('Gemini Web Plugin: Content Script Loaded');
 
-console.log('Gemini Web Plugin: Content Script Initialized');
+// ─── DOM Helpers ──────────────────────────────────────────────────────────────
 
-// --- Storage Logic ---
-
-async function loadPluginData() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get(['gemini_plugin_data'], (result) => {
-            if (result.gemini_plugin_data) {
-                pluginData = result.gemini_plugin_data;
-            }
-            resolve(pluginData);
-        });
+function waitForElement(selector, root = document.body, timeout = 5000) {
+  return new Promise((resolve, reject) => {
+    const existing = root.querySelector(selector);
+    if (existing) return resolve(existing);
+    const observer = new MutationObserver(() => {
+      const el = root.querySelector(selector);
+      if (el) { observer.disconnect(); resolve(el); }
     });
+    observer.observe(root, { childList: true, subtree: true });
+    setTimeout(() => { observer.disconnect(); reject(new Error(`Timeout: ${selector}`)); }, timeout);
+  });
 }
 
-async function savePluginData() {
-    return new Promise((resolve) => {
-        chrome.storage.local.set({ 'gemini_plugin_data': pluginData }, () => {
-            console.log('Gemini Web Plugin: Data saved', pluginData);
-            resolve();
-        });
+function waitForElementToDisappear(selector, root = document.body, timeout = 5000) {
+  return new Promise((resolve, reject) => {
+    if (!root.querySelector(selector)) return resolve();
+    const observer = new MutationObserver(() => {
+      if (!root.querySelector(selector)) { observer.disconnect(); resolve(); }
     });
+    observer.observe(root, { childList: true, subtree: true });
+    setTimeout(() => { observer.disconnect(); reject(new Error(`Timeout disappear: ${selector}`)); }, timeout);
+  });
 }
 
-// --- UI Components ---
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-function createActionBar(parent) {
-    if (document.getElementById('gemini-plugin-action-bar')) return;
-
-    const actionBar = document.createElement('div');
-    actionBar.id = 'gemini-plugin-action-bar';
-    actionBar.className = 'gemini-web-plugin-action-bar';
-    
-    actionBar.innerHTML = `
-        <button class="gemini-web-plugin-btn" id="gemini-select-all">Select All</button>
-        <button class="gemini-web-plugin-btn gemini-web-plugin-btn-danger" id="gemini-delete-selected">Delete Selected (0)</button>
-        <button class="gemini-web-plugin-btn" id="gemini-create-folder">+ Folder</button>
-    `;
-
-    parent.prepend(actionBar);
-
-    document.getElementById('gemini-select-all').addEventListener('click', toggleAllCheckboxes);
-    document.getElementById('gemini-delete-selected').addEventListener('click', deleteSelectedChats);
-    document.getElementById('gemini-create-folder').addEventListener('click', handleCreateFolder);
-    
-    renderFolders(parent);
+function getConversationItems() {
+  return Array.from(document.querySelectorAll('a.conversation'));
 }
 
-function renderFolders(parent) {
-    let folderContainer = document.getElementById('gemini-plugin-folder-container');
-    if (!folderContainer) {
-        folderContainer = document.createElement('div');
-        folderContainer.id = 'gemini-plugin-folder-container';
-        parent.appendChild(folderContainer);
+// ─── Find the "我的內容" button ──────────────────────────────────────────────
+
+function findMyContentButton() {
+  // Try multiple strategies to find the "我的內容" / "My Stuff" nav button
+  // Strategy 1: look for side-nav-entry-button
+  const sideNavBtns = document.querySelectorAll('a[class*="side-nav-entry-button"]');
+  for (const btn of sideNavBtns) {
+    const text = btn.textContent.trim();
+    if (text.includes('我的內容') || text.includes('My Stuff') || text.includes('My content')) {
+      return btn;
     }
+  }
+  // Strategy 2: look for any <a> with href containing "mystuff"
+  const mystuffLink = document.querySelector('a[href*="mystuff"]');
+  if (mystuffLink) return mystuffLink;
 
-    folderContainer.innerHTML = '<strong>Folders</strong>';
-    
-    // Add "All Chats" option
-    const allChatsEl = document.createElement('div');
-    allChatsEl.className = `gemini-web-plugin-folder ${!pluginData.activeFolder ? 'gemini-web-plugin-folder-active' : ''}`;
-    allChatsEl.innerText = '🏠 All Chats';
-    allChatsEl.onclick = () => filterByFolder(null);
-    folderContainer.appendChild(allChatsEl);
+  // Strategy 3: look for aria-label
+  const ariaBtn = document.querySelector('a[aria-label*="我的內容"], a[aria-label*="My Stuff"], a[aria-label*="My content"]');
+  if (ariaBtn) return ariaBtn;
 
-    pluginData.folders.forEach(folderName => {
-        const folderEl = document.createElement('div');
-        folderEl.className = `gemini-web-plugin-folder ${pluginData.activeFolder === folderName ? 'gemini-web-plugin-folder-active' : ''}`;
-        folderEl.innerText = `📁 ${folderName}`;
-        folderEl.onclick = () => filterByFolder(folderName);
-        folderContainer.appendChild(folderEl);
-    });
+  // Strategy 4: brute-force scan all links in the sidebar
+  const allLinks = document.querySelectorAll('nav a, [class*="side"] a');
+  for (const link of allLinks) {
+    const text = link.textContent.trim();
+    if (text === '我的內容' || text === 'My Stuff' || text === 'My content') {
+      return link;
+    }
+  }
+
+  return null;
 }
 
-function filterByFolder(folderName) {
-    pluginData.activeFolder = folderName;
-    renderFolders(document.querySelector(SELECTORS.chatListContainer));
-    
-    const items = document.querySelectorAll(SELECTORS.chatItem);
-    items.forEach(item => {
-        const chatId = getChatId(item);
-        if (!folderName) {
-            item.classList.remove('gemini-web-plugin-hidden');
-        } else if (pluginData.mapping[chatId] === folderName) {
-            item.classList.remove('gemini-web-plugin-hidden');
-        } else {
-            item.classList.add('gemini-web-plugin-hidden');
-        }
-    });
+// ─── Button Injection ───────────────────────────────────────────────────────
+
+function injectToggleButton() {
+  if (document.querySelector('#gwp-batch-toggle')) return;
+
+  const myContentBtn = findMyContentButton();
+  if (!myContentBtn) {
+    console.log('Gemini Web Plugin: Could not find "我的內容" button yet');
+    return;
+  }
+
+  console.log('Gemini Web Plugin: Found "我的內容" button, injecting Batch Delete');
+
+  // Create a button that mirrors the native structure
+  const btn = document.createElement('a');
+  btn.id = 'gwp-batch-toggle';
+  btn.href = 'javascript:void(0)';
+  btn.setAttribute('role', 'button');
+
+  // Copy the same classes from the native button for identical styling
+  // But add our own identifier class
+  const nativeClasses = myContentBtn.className
+    .split(/\s+/)
+    .filter(c => !c.startsWith('ng-') && c !== 'mat-mdc-tooltip-disabled')
+    .join(' ');
+  btn.className = nativeClasses + ' gwp-batch-toggle';
+
+  // Build the inner HTML mirroring native structure
+  // Native: <div><mat-icon class="... google-symbols ...">history</mat-icon></div><div class="side-nav-entry-button-text">我的內容</div>
+
+  // Find the icon container and text container structure from native button
+  const nativeIcon = myContentBtn.querySelector('mat-icon');
+  const nativeText = myContentBtn.querySelector('[class*="side-nav-entry-button-text"], [class*="button-text"]')
+    || myContentBtn.querySelector('div:last-child')
+    || myContentBtn.querySelector('span');
+
+  if (nativeIcon && nativeIcon.parentElement) {
+    // Clone the icon wrapper div with the mat-icon inside
+    const iconWrap = nativeIcon.parentElement.cloneNode(true);
+    const iconEl = iconWrap.querySelector('mat-icon');
+    if (iconEl) iconEl.textContent = 'delete_sweep';
+    btn.appendChild(iconWrap);
+  } else {
+    // Fallback: create our own icon
+    const iconWrap = document.createElement('div');
+    iconWrap.innerHTML = '<mat-icon class="mat-icon notranslate gds-icon-l google-symbols mat-ligature-font mat-icon-no-color" role="img">delete_sweep</mat-icon>';
+    btn.appendChild(iconWrap);
+  }
+
+  if (nativeText) {
+    const textEl = nativeText.cloneNode(false);
+    textEl.textContent = 'Batch Delete';
+    btn.appendChild(textEl);
+  } else {
+    // Fallback
+    const textDiv = document.createElement('div');
+    textDiv.className = 'side-nav-entry-button-text';
+    textDiv.textContent = 'Batch Delete';
+    btn.appendChild(textDiv);
+  }
+
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleBatchMode();
+  });
+
+  // Insert right after "我的內容"
+  if (myContentBtn.nextSibling) {
+    myContentBtn.parentNode.insertBefore(btn, myContentBtn.nextSibling);
+  } else {
+    myContentBtn.parentNode.appendChild(btn);
+  }
+
+  console.log('Gemini Web Plugin: Batch Delete button injected');
 }
 
-async function handleCreateFolder() {
-    const folderName = prompt('Enter folder name:');
-    if (!folderName || pluginData.folders.includes(folderName)) return;
+// ─── Batch Mode Toggle ──────────────────────────────────────────────────────
 
-    pluginData.folders.push(folderName);
-    await savePluginData();
-    renderFolders(document.querySelector(SELECTORS.chatListContainer));
+function toggleBatchMode() {
+  GWP.batchMode = !GWP.batchMode;
+  GWP.selectedItems.clear();
+
+  const toggle = document.querySelector('#gwp-batch-toggle');
+  if (toggle) toggle.classList.toggle('gwp-active', GWP.batchMode);
+
+  if (GWP.batchMode) {
+    injectCheckboxes();
+    injectSelectAllBar();
+    showActionBar();
+  } else {
+    removeCheckboxes();
+    removeSelectAllBar();
+    hideActionBar();
+  }
+  updateActionBar();
 }
 
-function getChatId(item) {
-    const link = item.querySelector(SELECTORS.chatLink);
-    if (!link) return null;
-    const parts = link.href.split('/');
-    return parts[parts.length - 1];
-}
+// ─── Checkboxes ──────────────────────────────────────────────────────────────
 
-function injectUI(item) {
-    if (item.querySelector('.gemini-web-plugin-checkbox')) return;
+function injectCheckboxes() {
+  const items = getConversationItems();
+  items.forEach(item => {
+    if (item.querySelector('.gwp-checkbox-wrap')) return;
 
-    const chatId = getChatId(item);
-    if (!chatId) return;
+    const wrap = document.createElement('label');
+    wrap.className = 'gwp-checkbox-wrap';
 
-    // Checkbox
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
-    checkbox.className = 'gemini-web-plugin-checkbox';
-    checkbox.addEventListener('change', updateDeleteButtonCount);
-    
-    // Folder Dropdown
-    const select = document.createElement('select');
-    select.className = 'gemini-web-plugin-move-dropdown';
-    select.innerHTML = `<option value="">--Move--</option>` + 
-        pluginData.folders.map(f => `<option value="${f}" ${pluginData.mapping[chatId] === f ? 'selected' : ''}>${f}</option>`).join('');
-    
-    select.onchange = (e) => {
-        pluginData.mapping[chatId] = e.target.value;
-        savePluginData();
-        filterByFolder(pluginData.activeFolder);
-    };
+    checkbox.className = 'gwp-checkbox';
 
-    if (item.firstChild) {
-        item.insertBefore(checkbox, item.firstChild);
-        item.insertBefore(select, checkbox.nextSibling);
+    const checkmark = document.createElement('span');
+    checkmark.className = 'gwp-checkmark';
+    checkmark.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+
+    wrap.appendChild(checkbox);
+    wrap.appendChild(checkmark);
+
+    wrap.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      checkbox.checked = !checkbox.checked;
+      if (checkbox.checked) {
+        GWP.selectedItems.add(item);
+      } else {
+        GWP.selectedItems.delete(item);
+      }
+      item.classList.toggle('gwp-selected', checkbox.checked);
+      updateActionBar();
+      updateSelectAllState();
+    });
+
+    item.insertBefore(wrap, item.firstChild);
+    item.classList.add('gwp-batch-item');
+  });
+}
+
+function removeCheckboxes() {
+  document.querySelectorAll('.gwp-checkbox-wrap').forEach(el => el.remove());
+  document.querySelectorAll('.gwp-batch-item').forEach(el => {
+    el.classList.remove('gwp-batch-item', 'gwp-selected');
+  });
+}
+
+// ─── Select All Bar ──────────────────────────────────────────────────────────
+
+function injectSelectAllBar() {
+  if (document.querySelector('.gwp-select-all-bar')) return;
+
+  const firstConversation = document.querySelector('a.conversation');
+  if (!firstConversation) return;
+  const listContainer = firstConversation.closest('[role="list"], mat-nav-list, infinite-scroller') || firstConversation.parentElement;
+
+  const bar = document.createElement('div');
+  bar.className = 'gwp-select-all-bar';
+
+  const label = document.createElement('label');
+  label.className = 'gwp-select-all-label';
+
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className = 'gwp-select-all-cb';
+
+  const checkmark = document.createElement('span');
+  checkmark.className = 'gwp-checkmark gwp-checkmark-all';
+  checkmark.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+
+  const text = document.createElement('span');
+  text.className = 'gwp-select-all-text';
+  text.textContent = 'Select All';
+
+  label.appendChild(checkbox);
+  label.appendChild(checkmark);
+  label.appendChild(text);
+  bar.appendChild(label);
+
+  label.addEventListener('click', (e) => {
+    e.preventDefault();
+    const items = getConversationItems();
+    const allSelected = GWP.selectedItems.size === items.length && items.length > 0;
+    if (allSelected) {
+      GWP.selectedItems.clear();
+      items.forEach(item => {
+        const cb = item.querySelector('.gwp-checkbox');
+        if (cb) cb.checked = false;
+        item.classList.remove('gwp-selected');
+      });
+      checkbox.checked = false;
+    } else {
+      items.forEach(item => {
+        GWP.selectedItems.add(item);
+        const cb = item.querySelector('.gwp-checkbox');
+        if (cb) cb.checked = true;
+        item.classList.add('gwp-selected');
+      });
+      checkbox.checked = true;
     }
+    updateActionBar();
+  });
+
+  listContainer.parentElement.insertBefore(bar, listContainer);
 }
 
-function updateDeleteButtonCount() {
-    const checkedCount = document.querySelectorAll('.gemini-web-plugin-checkbox:checked:not(.gemini-web-plugin-hidden)').length;
-    const btn = document.getElementById('gemini-delete-selected');
-    if (btn) btn.innerText = `Delete Selected (${checkedCount})`;
+function removeSelectAllBar() {
+  document.querySelectorAll('.gwp-select-all-bar').forEach(el => el.remove());
 }
 
-function toggleAllCheckboxes() {
-    const visibleCheckboxes = document.querySelectorAll(`${SELECTORS.chatItem}:not(.gemini-web-plugin-hidden) .gemini-web-plugin-checkbox`);
-    const allChecked = Array.from(visibleCheckboxes).every(cb => cb.checked);
-    visibleCheckboxes.forEach(cb => cb.checked = !allChecked);
-    updateDeleteButtonCount();
+function updateSelectAllState() {
+  const cb = document.querySelector('.gwp-select-all-cb');
+  if (!cb) return;
+  const items = getConversationItems();
+  cb.checked = items.length > 0 && GWP.selectedItems.size === items.length;
+  cb.indeterminate = GWP.selectedItems.size > 0 && GWP.selectedItems.size < items.length;
 }
 
-async function deleteSelectedChats() {
-    const selected = document.querySelectorAll('.gemini-web-plugin-checkbox:checked:not(.gemini-web-plugin-hidden)');
-    if (selected.length === 0) return;
-    if (!confirm(`Are you sure you want to delete ${selected.length} chats?`)) return;
+// ─── Floating Action Bar ────────────────────────────────────────────────────
 
-    for (const cb of selected) {
-        const item = cb.closest(SELECTORS.chatItem);
-        await performDelete(item);
+function showActionBar() {
+  if (document.querySelector('.gwp-action-bar')) return;
+
+  const bar = document.createElement('div');
+  bar.className = 'gwp-action-bar';
+  bar.innerHTML = `
+    <div class="gwp-action-bar-inner">
+      <span class="gwp-action-count">0 selected</span>
+      <div class="gwp-action-buttons">
+        <button class="gwp-btn gwp-btn-cancel">Cancel</button>
+        <button class="gwp-btn gwp-btn-delete" disabled>Delete</button>
+      </div>
+    </div>
+  `;
+
+  bar.querySelector('.gwp-btn-cancel').addEventListener('click', toggleBatchMode);
+  bar.querySelector('.gwp-btn-delete').addEventListener('click', () => handleBatchDelete());
+
+  // Attach to the sidebar
+  const sidebar = document.querySelector('a.conversation')?.closest('nav, aside')
+    || document.querySelector('a.conversation')?.closest('[class*="side"]')
+    || document.body;
+  sidebar.style.position = 'relative';
+  sidebar.appendChild(bar);
+}
+
+function hideActionBar() {
+  document.querySelectorAll('.gwp-action-bar').forEach(el => el.remove());
+}
+
+function updateActionBar() {
+  const count = GWP.selectedItems.size;
+  const countEl = document.querySelector('.gwp-action-count');
+  const deleteBtn = document.querySelector('.gwp-btn-delete');
+  if (countEl) countEl.textContent = `${count} selected`;
+  if (deleteBtn) deleteBtn.disabled = count === 0;
+}
+
+// ─── Progress Overlay ──────────────────────────────────────────────────────
+
+function showProgress(current, total, title) {
+  let overlay = document.querySelector('.gwp-progress-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'gwp-progress-overlay';
+    overlay.innerHTML = `
+      <div class="gwp-progress-card">
+        <div class="gwp-progress-title">Deleting conversations...</div>
+        <div class="gwp-progress-bar-wrap">
+          <div class="gwp-progress-bar-fill"></div>
+        </div>
+        <div class="gwp-progress-status"></div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  }
+  const pct = Math.round((current / total) * 100);
+  overlay.querySelector('.gwp-progress-bar-fill').style.width = `${pct}%`;
+  overlay.querySelector('.gwp-progress-status').textContent = `${current} / ${total} — ${title}`;
+}
+
+function hideProgress() {
+  document.querySelectorAll('.gwp-progress-overlay').forEach(el => el.remove());
+}
+
+// ─── Batch Delete Logic ──────────────────────────────────────────────────────
+
+async function handleBatchDelete() {
+  const items = Array.from(GWP.selectedItems);
+  if (items.length === 0) return;
+
+  if (!confirm(`Delete ${items.length} conversation${items.length > 1 ? 's' : ''}?`)) return;
+
+  GWP.isDeleting = true;
+  hideActionBar();
+  removeSelectAllBar();
+
+  let deleted = 0;
+  const total = items.length;
+
+  for (const item of items) {
+    if (!document.body.contains(item)) {
+      deleted++;
+      continue;
     }
+
+    const title = (item.textContent?.trim() || 'Untitled').substring(0, 30);
+    showProgress(deleted + 1, total, title);
+
+    try {
+      await deleteSingleConversation(item);
+      deleted++;
+      console.log(`Gemini Web Plugin: Deleted (${deleted}/${total}): ${title}`);
+    } catch (err) {
+      console.error(`Gemini Web Plugin: Failed to delete "${title}":`, err);
+    }
+
+    await sleep(600);
+  }
+
+  hideProgress();
+  GWP.isDeleting = false;
+  GWP.selectedItems.clear();
+  GWP.batchMode = false;
+
+  const toggle = document.querySelector('#gwp-batch-toggle');
+  if (toggle) toggle.classList.remove('gwp-active');
+  removeCheckboxes();
+
+  console.log(`Gemini Web Plugin: Batch delete complete. ${deleted}/${total} deleted.`);
 }
 
-async function performDelete(item) {
-    console.log('Gemini Web Plugin: Deleting chat...');
-    // Automating deletion is delicate. This is a generic pattern.
-    const menuBtn = item.querySelector(SELECTORS.menuBtn);
-    if (!menuBtn) return;
-    
-    menuBtn.click();
-    await new Promise(r => setTimeout(r, 500)); // Wait for menu
-    
-    // Find "Delete" in the menu and click it
-    const menuItems = document.querySelectorAll('[role="menuitem"]');
-    for (const mi of menuItems) {
-        if (mi.innerText.includes('Delete')) {
-            mi.click();
-            break;
-        }
+async function deleteSingleConversation(item) {
+  // Step 1: Hover to reveal the 3-dot menu button
+  item.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+  item.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+  await sleep(400);
+
+  // Step 2: Find the 3-dot ⋮ button — search broadly
+  let menuBtn = null;
+  // Primary: look for it within the conversation item itself
+  menuBtn = item.querySelector('button.conversation-actions-menu-button');
+  if (!menuBtn) {
+    // It might be a sibling or in a parent wrapper
+    const wrapper = item.closest('[role="listitem"]') || item.parentElement;
+    menuBtn = wrapper?.querySelector('button.conversation-actions-menu-button');
+  }
+  if (!menuBtn) {
+    // Angular might use a different class pattern
+    menuBtn = item.querySelector('button[class*="menu-button"]')
+      || item.querySelector('button[aria-haspopup="menu"]');
+  }
+  if (!menuBtn) {
+    const wrapper = item.closest('[role="listitem"]') || item.parentElement;
+    menuBtn = wrapper?.querySelector('button[class*="menu-button"]')
+      || wrapper?.querySelector('button[aria-haspopup="menu"]');
+  }
+
+  if (!menuBtn) {
+    throw new Error('Could not find 3-dot menu button');
+  }
+
+  console.log('Gemini Web Plugin: Clicking menu button');
+  menuBtn.click();
+  await sleep(300);
+
+  // Step 3: Wait for dropdown menu items to appear
+  // Angular CDK overlays attach to a body-level overlay container, so search globally
+  await waitForElement('.mat-mdc-menu-panel button[role="menuitem"], .mat-mdc-menu-panel .mat-mdc-menu-item, [role="menu"] [role="menuitem"]', document.body, 3000);
+  await sleep(300);
+
+  // Step 4: Find and click the "Delete" / "刪除" menu item
+  // Search globally in all overlay containers since Angular renders menus in CDK overlay
+  const allMenuItems = document.querySelectorAll('.mat-mdc-menu-panel button, .mat-mdc-menu-panel [role="menuitem"], [role="menu"] [role="menuitem"]');
+  console.log(`Gemini Web Plugin: Found ${allMenuItems.length} menu items`);
+
+  let deleteMenuItem = null;
+  for (const mi of allMenuItems) {
+    // Strategy 1: Check mat-icon ligature text
+    const icons = mi.querySelectorAll('mat-icon, [class*="google-symbols"]');
+    for (const icon of icons) {
+      if (icon.textContent.trim() === 'delete') {
+        deleteMenuItem = mi;
+        break;
+      }
     }
-    
-    // Note: Usually a confirmation dialog appears. We would need to click "Delete" there too.
+    if (deleteMenuItem) break;
+
+    // Strategy 2: Check span text content
+    const spans = mi.querySelectorAll('.mat-mdc-menu-item-text, span');
+    for (const span of spans) {
+      const t = span.textContent.trim();
+      if (t === '刪除' || t === 'Delete') {
+        deleteMenuItem = mi;
+        break;
+      }
+    }
+    if (deleteMenuItem) break;
+  }
+
+  if (!deleteMenuItem) {
+    // Debug: log what we found
+    allMenuItems.forEach((mi, i) => {
+      console.log(`Gemini Web Plugin: Menu item ${i}: "${mi.textContent.trim().substring(0, 40)}"`);
+    });
+    // Close the menu
+    document.body.click();
+    await sleep(200);
+    throw new Error('Could not find Delete menu item');
+  }
+
+  console.log('Gemini Web Plugin: Clicking delete menu item');
+  deleteMenuItem.click();
+  await sleep(300);
+
+  // Step 5: Wait for confirmation dialog to fully render
+  await waitForElement('mat-dialog-container, [role="dialog"]', document.body, 3000);
+  await sleep(500); // Give Angular time to render dialog content
+
+  // Step 6: Find the DELETE button in the dialog (NOT the cancel button)
+  // NOTE: Gemini puts mat-primary class on the Cancel button, so we match by TEXT
+  const dialogContainers = document.querySelectorAll('mat-dialog-container, [role="dialog"], .cdk-overlay-container');
+  let confirmBtn = null;
+
+  for (const dialog of dialogContainers) {
+    const allBtns = dialog.querySelectorAll('button');
+    for (const b of allBtns) {
+      const text = b.textContent?.trim() || '';
+      // Match the delete button by text, skip cancel
+      if (text === '刪除' || text === 'Delete' || text === 'delete') {
+        confirmBtn = b;
+        break;
+      }
+    }
+    if (confirmBtn) break;
+  }
+
+  if (!confirmBtn) {
+    console.error('Gemini Web Plugin: Could not find delete confirm button');
+    throw new Error('Could not find confirm button in dialog');
+  }
+
+  console.log('Gemini Web Plugin: Clicking confirm delete');
+  confirmBtn.click();
+
+  // Step 7: Wait for dialog to close
+  await waitForElementToDisappear('mat-dialog-container, [role="dialog"]', document.body, 5000);
+  await sleep(400);
 }
 
-// --- Main Init ---
+// ─── Observer & Init ────────────────────────────────────────────────────────
 
-const observer = new MutationObserver(async () => {
-    const chatList = document.querySelector(SELECTORS.chatListContainer);
-    if (chatList) {
-        if (pluginData.folders.length === 0 && Object.keys(pluginData.mapping).length === 0) {
-            await loadPluginData();
-        }
-        createActionBar(chatList);
-        const items = document.querySelectorAll(SELECTORS.chatItem);
-        items.forEach(injectUI);
+function startObserver() {
+  const observer = new MutationObserver(() => {
+    if (GWP.isDeleting) return;
+    injectToggleButton();
+    if (GWP.batchMode) {
+      injectCheckboxes();
     }
-});
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+}
 
-observer.observe(document.body, { childList: true, subtree: true });
+function init() {
+  // Retry injection since Gemini loads the sidebar asynchronously
+  const tryInject = () => {
+    injectToggleButton();
+    if (!document.querySelector('#gwp-batch-toggle')) {
+      setTimeout(tryInject, 1000);
+    }
+  };
+  tryInject();
+  startObserver();
+}
+
+init();
