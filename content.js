@@ -478,14 +478,14 @@ function init() {
 
 function findScrollContainer() {
   // Strategy 1: Look for the specific Gemini chat container
-  // Gemini often uses 'infinite-scroller' or specific ms-* tags
   const selectors = [
     'ms-chat-view-container',
     'ms-infinite-scroller',
     'infinite-scroller',
     'main',
     '.chat-history',
-    '[role="main"]'
+    '[role="main"]',
+    'ms-chat-view'
   ];
 
   for (const selector of selectors) {
@@ -502,6 +502,7 @@ function findScrollContainer() {
 
   // Strategy 2: Find the largest scrollable element that contains messages
   const allScrollable = Array.from(document.querySelectorAll('*')).filter(el => {
+    // Basic scrollability check
     if (el.scrollHeight <= el.clientHeight + 10) return false;
     const s = window.getComputedStyle(el);
     return s.overflowY === 'auto' || s.overflowY === 'scroll';
@@ -512,9 +513,19 @@ function findScrollContainer() {
     return (b.offsetWidth * b.offsetHeight) - (a.offsetWidth * a.offsetHeight);
   });
 
-  return allScrollable.find(el => 
-    el.querySelector('message-content, .message, [role="article"], .conversation-container')
-  ) || allScrollable[0];
+  // Prioritize elements containing chat messages
+  const messageScroller = allScrollable.find(el => 
+    el.querySelector('message-content, .message, [role="article"]')
+  );
+  if (messageScroller) return messageScroller;
+
+  // Then look for conversation list (sidebar / my stuff)
+  const conversationScroller = allScrollable.find(el => 
+    el.querySelector('.conversation-container, a.conversation')
+  );
+  if (conversationScroller) return conversationScroller;
+
+  return allScrollable[0] || document.scrollingElement || document.documentElement;
 }
 
 function injectScrollButtons() {
@@ -539,13 +550,21 @@ function injectScrollButtons() {
 
   let container = null;
 
-  const updateButtonsVisibility = () => {
-    if (!container || !document.body.contains(container)) {
+  const updateButtonsVisibility = (event) => {
+    // If we receive a scroll event from a valid chat container, update our reference
+    if (event && event.type === 'scroll' && event.target instanceof HTMLElement) {
+      const target = event.target;
+      if (target !== container && target.querySelector('message-content, [role="article"]')) {
+        container = target;
+      }
+    }
+
+    // Re-validate container if it's gone, hidden, or not the current scroller
+    if (!container || !document.body.contains(container) || (container !== document.body && container.offsetParent === null)) {
       container = findScrollContainer();
     }
     
     if (!container) {
-      // If no container found, hide both
       topBtn.classList.remove('gwp-visible');
       bottomBtn.classList.remove('gwp-visible');
       return;
@@ -555,6 +574,14 @@ function injectScrollButtons() {
     const scrollTop = container.scrollTop;
     const scrollHeight = container.scrollHeight;
     const clientHeight = container.clientHeight;
+    
+    // Safety check for invalid dimensions
+    if (clientHeight === 0) {
+      topBtn.classList.remove('gwp-visible');
+      bottomBtn.classList.remove('gwp-visible');
+      return;
+    }
+
     const distanceToBottom = scrollHeight - scrollTop - clientHeight;
 
     // Top button visible if scrolled down
@@ -573,14 +600,18 @@ function injectScrollButtons() {
   };
 
   topBtn.addEventListener('click', () => {
-    if (!container || !document.body.contains(container)) container = findScrollContainer();
+    if (!container || !document.body.contains(container) || (container !== document.body && container.offsetParent === null)) {
+      container = findScrollContainer();
+    }
     if (container) {
       container.scrollTo({ top: 0, behavior: 'smooth' });
     }
   });
 
   bottomBtn.addEventListener('click', () => {
-    if (!container || !document.body.contains(container)) container = findScrollContainer();
+    if (!container || !document.body.contains(container) || (container !== document.body && container.offsetParent === null)) {
+      container = findScrollContainer();
+    }
     if (container) {
       container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
     }
