@@ -1,7 +1,10 @@
 # Gemini Web Plugin
 
 ## Project Overview
-This project is a Google Chrome extension designed to enhance the Gemini web interface (gemini.google.com). It adds batch deletion capabilities for chat history and a folder-based management system for organizing conversations.
+This project is a Google Chrome extension designed to enhance the Gemini web interface (gemini.google.com). It adds:
+- **Batch Deletion**: Automates the native delete flow for multiple conversations.
+- **Scroll Controls**: Floating "Scroll to Top" and "Scroll to Bottom" buttons for easy chat navigation.
+- **Folders (Planned)**: A folder-based management system for organizing conversations.
 
 ### Technologies
 - **Chrome Extension Manifest V3**
@@ -30,5 +33,6 @@ This project is a Google Chrome extension designed to enhance the Gemini web int
 ## Roadmap (TODO)
 - [x] Implement robust `MutationObserver` for batch delete checkboxes.
 - [x] Refine "Batch Delete" UI to perfectly match native Gemini Material Design (alignment, icons, dialogs).
+- [x] Add floating "Scroll to Top" and "Scroll to Bottom" buttons.
 - [ ] Create UI for folder creation and chat-to-folder assignment.
 - [ ] Implement background script for more complex storage sync if needed.

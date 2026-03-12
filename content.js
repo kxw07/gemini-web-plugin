@@ -453,6 +453,7 @@ function startObserver() {
   const observer = new MutationObserver(() => {
     if (GWP.isDeleting) return;
     injectToggleButton();
+    injectScrollButtons();
     if (GWP.batchMode) {
       injectCheckboxes();
     }
@@ -464,12 +465,131 @@ function init() {
   // Retry injection since Gemini loads the sidebar asynchronously
   const tryInject = () => {
     injectToggleButton();
+    injectScrollButtons();
     if (!document.querySelector('#gwp-batch-toggle')) {
       setTimeout(tryInject, 1000);
     }
   };
   tryInject();
   startObserver();
+}
+
+// ─── Scroll to Bottom Button ──────────────────────────────────────────────
+
+function findScrollContainer() {
+  // Strategy 1: Look for the specific Gemini chat container
+  // Gemini often uses 'infinite-scroller' or specific ms-* tags
+  const selectors = [
+    'ms-chat-view-container',
+    'ms-infinite-scroller',
+    'infinite-scroller',
+    'main',
+    '.chat-history',
+    '[role="main"]'
+  ];
+
+  for (const selector of selectors) {
+    const els = document.querySelectorAll(selector);
+    for (const el of els) {
+      if (el && el.scrollHeight > el.clientHeight + 10) {
+        const style = window.getComputedStyle(el);
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+          return el;
+        }
+      }
+    }
+  }
+
+  // Strategy 2: Find the largest scrollable element that contains messages
+  const allScrollable = Array.from(document.querySelectorAll('*')).filter(el => {
+    if (el.scrollHeight <= el.clientHeight + 10) return false;
+    const s = window.getComputedStyle(el);
+    return s.overflowY === 'auto' || s.overflowY === 'scroll';
+  });
+
+  // Sort by area (width * height) descending to find the main container
+  allScrollable.sort((a, b) => {
+    return (b.offsetWidth * b.offsetHeight) - (a.offsetWidth * a.offsetHeight);
+  });
+
+  return allScrollable.find(el => 
+    el.querySelector('message-content, .message, [role="article"], .conversation-container')
+  ) || allScrollable[0];
+}
+
+function injectScrollButtons() {
+  if (document.querySelector('.gwp-scroll-top-btn')) return;
+
+  console.log('Gemini Web Plugin: Injecting scroll buttons');
+
+  // Create Scroll to Top Button
+  const topBtn = document.createElement('div');
+  topBtn.className = 'gwp-scroll-btn gwp-scroll-top-btn';
+  topBtn.innerHTML = '<span class="google-symbols" role="img" aria-hidden="true">arrow_upward</span>';
+  topBtn.title = '捲動到頂部';
+
+  // Create Scroll to Bottom Button
+  const bottomBtn = document.createElement('div');
+  bottomBtn.className = 'gwp-scroll-btn gwp-scroll-bottom-btn';
+  bottomBtn.innerHTML = '<span class="google-symbols" role="img" aria-hidden="true">arrow_downward</span>';
+  bottomBtn.title = '捲動到底部';
+
+  document.body.appendChild(topBtn);
+  document.body.appendChild(bottomBtn);
+
+  let container = null;
+
+  const updateButtonsVisibility = () => {
+    if (!container || !document.body.contains(container)) {
+      container = findScrollContainer();
+    }
+    
+    if (!container) {
+      // If no container found, hide both
+      topBtn.classList.remove('gwp-visible');
+      bottomBtn.classList.remove('gwp-visible');
+      return;
+    }
+
+    const threshold = 150;
+    const scrollTop = container.scrollTop;
+    const scrollHeight = container.scrollHeight;
+    const clientHeight = container.clientHeight;
+    const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+
+    // Top button visible if scrolled down
+    if (scrollTop > threshold) {
+      topBtn.classList.add('gwp-visible');
+    } else {
+      topBtn.classList.remove('gwp-visible');
+    }
+
+    // Bottom button visible if not near the bottom
+    if (distanceToBottom > threshold) {
+      bottomBtn.classList.add('gwp-visible');
+    } else {
+      bottomBtn.classList.remove('gwp-visible');
+    }
+  };
+
+  topBtn.addEventListener('click', () => {
+    if (!container || !document.body.contains(container)) container = findScrollContainer();
+    if (container) {
+      container.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  });
+
+  bottomBtn.addEventListener('click', () => {
+    if (!container || !document.body.contains(container)) container = findScrollContainer();
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+    }
+  });
+
+  // Check scroll status periodically and on scroll
+  setInterval(updateButtonsVisibility, 500);
+  // Listen for scroll events globally in capture phase to catch them from the container
+  window.addEventListener('scroll', updateButtonsVisibility, true);
 }
 
 init();

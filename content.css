@@ -249,6 +249,54 @@ a.conversation.gwp-selected {
   line-height: 20px;
 }
 
+/* ─── Scroll Buttons ──────────────────────────────────────────────────────── */
+.gwp-scroll-btn {
+  position: fixed;
+  right: 24px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--gwp-surface);
+  border: 1px solid var(--gwp-border);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 999;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateY(10px);
+  color: var(--gwp-text);
+}
+
+.gwp-scroll-btn.gwp-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.gwp-scroll-btn:hover {
+  background: var(--gwp-surface-dim);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.gwp-scroll-top-btn {
+  bottom: 148px; /* Above Bottom button */
+}
+
+.gwp-scroll-bottom-btn {
+  bottom: 100px; /* Above the input area */
+}
+
+.gwp-scroll-btn .google-symbols {
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
+  user-select: none;
+}
+
 /* ─── Animations ──────────────────────────────────────────────────────────── */
 @keyframes gwp-fade-in {
   from {
