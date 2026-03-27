@@ -334,40 +334,50 @@ a.conversation.gwp-selected {
 
 /* ─── Expand Chat Width (User Request) ────────────────────────────────────── */
 
-/* 1. Expand the root scroller to allow wide children */
+/* 1. Main Container & Input Expansion (Restored from known working state) */
 .chat-history, 
-infinite-scroller.chat-history {
+.input-area-container,
+.conversation-container,
+[class*="chat-history"],
+[class*="conversation-container"],
+[class*="messages-container"],
+infinite-scroller {
+  max-width: 1000px !important;
   width: 100% !important;
-  max-width: none !important;
-}
-
-/* 2. Target the conversation content container */
-.conversation-content,
-.message-content-container {
-  width: 100% !important;
-  max-width: 1050px !important;
   margin-left: auto !important;
   margin-right: auto !important;
 }
 
-/* 3. Override the Angular message-content tag bottleneck */
-message-content {
+/* 2. Deep DOM Overrides for Nested Angular Wrappers */
+chat-message,
+model-response,
+user-query,
+markdown-renderer,
+.message-content-container,
+.message-content,
+.text-content,
+.ui-text {
+  max-width: 1000px !important;
   width: 100% !important;
+  display: block;
+}
+
+/* 3. The precise Grid-Breaker identified by Subagent */
+message-content {
   max-width: none !important;
+  width: 100% !important;
   display: block !important;
 }
 
-/* 4. target the internal div wrapper inside message-content */
-message-content > div {
-  width: 100% !important;
-  max-width: 1000px !important;
-}
-
-/* 5. Force the table itself to stretch and disable horizontal scrolling where possible */
+/* 4. Force Table Stretching */
+.message-content table,
+.markdown table,
+[class*="markdown"] table,
 .table-content,
 .table-content table {
   width: 100% !important;
-  min-width: 850px !important;
+  min-width: 850px !important; /* Force grid expansion */
+  max-width: 100% !important;
   table-layout: auto !important;
   display: table !important;
 }
