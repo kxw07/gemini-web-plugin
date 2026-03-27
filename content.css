@@ -357,14 +357,17 @@ user-query,
 table {
   width: 100% !important;
   max-width: 100% !important;
+  table-layout: auto !important;
 }
 
 /* Allow table wrappers and markdown containers to stretch fully */
+.table-content,
 .markdown-table-wrapper,
 .markdown > div:has(> table),
 model-response .markdown,
 .markdown,
 .message-content {
+  display: block !important;
   max-width: 100% !important;
   width: 100% !important;
 }
