@@ -339,7 +339,11 @@ a.conversation.gwp-selected {
 [class*="chat-history"],
 [class*="conversation-container"],
 [class*="messages-container"],
-infinite-scroller {
+infinite-scroller,
+model-response,
+user-query,
+.message-content,
+.text-content {
   max-width: 1000px !important;
   width: 100% !important;
   margin-left: auto !important;
@@ -355,10 +359,11 @@ table {
   max-width: 100% !important;
 }
 
-/* Allow table wrappers to stretch, preventing table constraints */
+/* Allow table wrappers and markdown containers to stretch fully */
 .markdown-table-wrapper,
 .markdown > div:has(> table),
 model-response .markdown,
+.markdown,
 .message-content {
   max-width: 100% !important;
   width: 100% !important;
@@ -369,8 +374,6 @@ user-query,
 [class*="user-query-container"] {
   display: flex !important;
   justify-content: flex-end !important;
-  max-width: 100% !important;
-  width: 100% !important;
 }
 
 user-query .query-content,
