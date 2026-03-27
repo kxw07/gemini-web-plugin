@@ -354,3 +354,26 @@ table {
   width: 100% !important;
   max-width: 100% !important;
 }
+
+/* Allow table wrappers to stretch, preventing table constraints */
+.markdown-table-wrapper,
+.markdown > div:has(> table),
+model-response .markdown,
+.message-content {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* Push user query bubbles to the right margin */
+user-query,
+[class*="user-query-container"] {
+  display: flex !important;
+  justify-content: flex-end !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+user-query .query-content,
+[class*="user-message"] {
+  margin-right: 0 !important;
+}
