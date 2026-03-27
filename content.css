@@ -331,3 +331,15 @@ a.conversation.gwp-selected {
     transform: scale(1);
   }
 }
+
+/* ─── Expand Chat Width (User Request) ────────────────────────────────────── */
+.chat-history, 
+.input-area-container,
+.conversation-container,
+[class*="chat-history"],
+[class*="conversation-container"],
+[class*="messages-container"],
+infinite-scroller {
+  max-width: 90% !important;
+  width: 90% !important;
+}
