@@ -342,4 +342,15 @@ a.conversation.gwp-selected {
 infinite-scroller {
   max-width: 1000px !important;
   width: 100% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* Ensure tables inside the chat expand to use the new width */
+.message-content table,
+.markdown table,
+[class*="markdown"] table,
+table {
+  width: 100% !important;
+  max-width: 100% !important;
 }
