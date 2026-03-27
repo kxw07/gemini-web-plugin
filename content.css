@@ -340,15 +340,20 @@ a.conversation.gwp-selected {
 [class*="conversation-container"],
 [class*="messages-container"],
 infinite-scroller,
+chat-message,
 model-response,
 user-query,
 message-content,
+markdown-renderer,
+.message-content-container,
 .message-content,
-.text-content {
+.text-content,
+.ui-text {
   max-width: 1000px !important;
   width: 100% !important;
   margin-left: auto !important;
   margin-right: auto !important;
+  display: block;
 }
 
 /* Ensure tables inside the chat expand to use the new width */
