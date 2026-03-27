@@ -340,6 +340,6 @@ a.conversation.gwp-selected {
 [class*="conversation-container"],
 [class*="messages-container"],
 infinite-scroller {
-  max-width: 90% !important;
-  width: 90% !important;
+  max-width: 1000px !important;
+  width: 100% !important;
 }
