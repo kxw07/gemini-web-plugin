@@ -334,7 +334,7 @@ a.conversation.gwp-selected {
 
 /* ─── Expand Chat Width (User Request) ────────────────────────────────────── */
 
-/* 1. Main Container & Input Expansion (Restored from known working state) */
+/* 1. Main Container & Input Expansion */
 .chat-history, 
 .input-area-container,
 .conversation-container,
@@ -346,40 +346,6 @@ infinite-scroller {
   width: 100% !important;
   margin-left: auto !important;
   margin-right: auto !important;
-}
-
-/* 2. Deep DOM Overrides for Nested Angular Wrappers */
-chat-message,
-model-response,
-user-query,
-markdown-renderer,
-.message-content-container,
-.message-content,
-.text-content,
-.ui-text {
-  max-width: 1000px !important;
-  width: 100% !important;
-  display: block;
-}
-
-/* 3. The precise Grid-Breaker identified by Subagent */
-message-content {
-  max-width: none !important;
-  width: 100% !important;
-  display: block !important;
-}
-
-/* 4. Force Table Stretching */
-.message-content table,
-.markdown table,
-[class*="markdown"] table,
-.table-content,
-.table-content table {
-  width: 100% !important;
-  min-width: 850px !important; /* Force grid expansion */
-  max-width: 100% !important;
-  table-layout: auto !important;
-  display: table !important;
 }
 
 /* Push user query bubbles to the right margin */
