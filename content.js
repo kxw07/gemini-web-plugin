@@ -40,37 +40,74 @@ function waitForElementToDisappear(selector, root = document.body, timeout = 500
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 function getConversationItems() {
-  return Array.from(document.querySelectorAll('a.conversation'));
+  // Strategy 1: standard class
+  let items = Array.from(document.querySelectorAll('a.conversation'));
+  if (items.length > 0) return items;
+
+  // Strategy 2: a tags in nav/aside with href containing /app/ followed by ID or /chat/ followed by ID
+  const allLinks = document.querySelectorAll('nav a, aside a, [class*="sidebar"] a, [class*="nav"] a');
+  items = Array.from(allLinks).filter(a => {
+    const href = a.getAttribute('href') || '';
+    const parts = href.split('/').filter(Boolean);
+    // Filter out typical navigation links that are not conversations
+    const nonChatPaths = ['settings', 'library', 'help', 'activity', 'gems', 'extensions', 'export'];
+    return parts.length >= 2 && 
+           (parts[0] === 'app' || parts[0] === 'chat') && 
+           !nonChatPaths.includes(parts[1]);
+  });
+  
+  return items;
 }
 
-// ─── Find the "我的內容" button ──────────────────────────────────────────────
+// ─── Find a stable button to clone ──────────────────────────────────────────
 
-function findMyContentButton() {
-  // Try multiple strategies to find the "我的內容" / "My Stuff" nav button
-  // Strategy 1: look for side-nav-entry-button
-  const sideNavBtns = document.querySelectorAll('a[class*="side-nav-entry-button"]');
+function findButtonToClone() {
+  // We want to find any stable sidebar item to clone.
+  // Order of preference:
+  // 1. Library (媒體庫) - the direct modern replacement for "My Stuff"
+  // 2. Gems (Gem Manager)
+  // 3. Settings (設定)
+  // 4. Activity (活動)
+  // 5. Help (說明)
+  // 6. New chat (新對話)
+  const keywords = [
+    'Library', '媒體庫', 'library',
+    'Gems', 'Gem Manager',
+    'Settings', '設定', 'settings',
+    'Activity', '活動', 'activity',
+    'Help', '說明', 'help',
+    'New chat', '新對話', 'new-chat'
+  ];
+
+  // Strategy 1: Search for button/link inside sidebar with text matching keywords
+  const elements = document.querySelectorAll('nav a, nav button, aside a, aside button, [class*="sidebar"] a, [class*="sidebar"] button, [class*="nav"] a, [class*="nav"] button');
+  for (const el of elements) {
+    const text = el.textContent.trim();
+    for (const kw of keywords) {
+      if (text.includes(kw)) {
+        return el;
+      }
+    }
+  }
+
+  // Strategy 2: Search by aria-label containing keywords
+  for (const kw of keywords) {
+    const el = document.querySelector(`[aria-label*="${kw}" i]`);
+    if (el) return el;
+  }
+
+  // Strategy 3: Search for general sidebar nav buttons by class names
+  const sideNavBtns = document.querySelectorAll('[class*="side-nav-entry-button"], [class*="nav-item"], [class*="sidebar-item"]');
   for (const btn of sideNavBtns) {
-    const text = btn.textContent.trim();
-    if (text.includes('我的內容') || text.includes('My Stuff') || text.includes('My content')) {
+    // Return the first one that is a link or button
+    if (btn.tagName === 'A' || btn.tagName === 'BUTTON' || btn.getAttribute('role') === 'button') {
       return btn;
     }
   }
-  // Strategy 2: look for any <a> with href containing "mystuff"
-  const mystuffLink = document.querySelector('a[href*="mystuff"]');
-  if (mystuffLink) return mystuffLink;
 
-  // Strategy 3: look for aria-label
-  const ariaBtn = document.querySelector('a[aria-label*="我的內容"], a[aria-label*="My Stuff"], a[aria-label*="My content"]');
-  if (ariaBtn) return ariaBtn;
-
-  // Strategy 4: brute-force scan all links in the sidebar
-  const allLinks = document.querySelectorAll('nav a, [class*="side"] a');
-  for (const link of allLinks) {
-    const text = link.textContent.trim();
-    if (text === '我的內容' || text === 'My Stuff' || text === 'My content') {
-      return link;
-    }
-  }
+  // Strategy 4: Fallback to the first anchor inside sidebar
+  const firstAnchor = document.querySelector('nav a, aside a, [class*="sidebar"] a');
+  if (firstAnchor) return firstAnchor;
 
   return null;
 }
@@ -80,17 +117,16 @@ function findMyContentButton() {
 function injectToggleButton() {
   if (document.querySelector('#gwp-batch-toggle')) return;
 
-  const myContentBtn = findMyContentButton();
-  if (!myContentBtn) {
-    console.log('Gemini Web Plugin: Could not find "我的內容" button yet');
+  const cloneTarget = findButtonToClone();
+  if (!cloneTarget) {
+    console.log('Gemini Web Plugin: Could not find a sidebar button to clone yet');
     return;
   }
 
-  console.log('Gemini Web Plugin: Found "我的內容" button, injecting Batch Delete');
+  console.log(`Gemini Web Plugin: Found button to clone (${cloneTarget.textContent.trim().substring(0, 20)}), injecting Batch Delete`);
 
-  // Deep clone the entire native button — this preserves Angular's _ngcontent-* attributes
-  // which are required for scoped CSS rules to apply
-  const btn = myContentBtn.cloneNode(true);
+  // Deep clone the entire native button to preserve Angular's _ngcontent-* scope attributes
+  const btn = cloneTarget.cloneNode(true);
   btn.id = 'gwp-batch-toggle';
   btn.href = 'javascript:void(0)';
   btn.removeAttribute('aria-label');
@@ -102,7 +138,6 @@ function injectToggleButton() {
   // Replace the icon — clear the entire icon wrapper and create fresh mat-icon
   const allIcons = btn.querySelectorAll('mat-icon');
   if (allIcons.length > 0) {
-    // Save metadata before clearing (clearing removes the original elements)
     const origIcon = allIcons[0];
     const iconClassName = origIcon.className;
     const ngAttrs = [];
@@ -113,23 +148,67 @@ function injectToggleButton() {
     }
 
     const iconWrapper = origIcon.parentElement;
-    // Clear the wrapper completely — removes all old icons
     iconWrapper.innerHTML = '';
 
-    // Create a fresh mat-icon with saved metadata
     const newIcon = document.createElement('mat-icon');
     newIcon.className = iconClassName;
     ngAttrs.forEach(a => newIcon.setAttribute(a.name, a.value));
     newIcon.setAttribute('role', 'img');
     newIcon.textContent = 'delete';
     iconWrapper.appendChild(newIcon);
+  } else {
+    // If the cloned element doesn't have a mat-icon, check if there's an svg
+    const svg = btn.querySelector('svg');
+    if (svg) {
+      svg.innerHTML = '<path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="currentColor"/>';
+    }
   }
 
   // Swap the label text to "批次刪除"
-  // Try known text container first, then fall back to last div
-  const textEl = btn.querySelector('[class*="side-nav-entry-button-text"], [class*="button-text"]')
-    || btn.querySelector('div:last-child');
-  if (textEl) textEl.textContent = '批次刪除';
+  // Search for the element containing the original matched text to avoid overwriting structural divs
+  let textEl = null;
+  const cloneTargetText = cloneTarget.textContent.trim();
+  const allChildren = Array.from(btn.querySelectorAll('*'));
+  // Sort children by text content length ascending so we check the most specific elements first
+  allChildren.sort((a, b) => a.textContent.length - b.textContent.length);
+
+  for (const child of allChildren) {
+    const text = child.textContent.trim();
+    if (text && (
+      text === 'Library' || text === '媒體庫' || text === 'library' ||
+      text === 'Gems' || text === 'Gem Manager' ||
+      text === 'Settings' || text === '設定' || text === 'settings' ||
+      text === 'Activity' || text === '活動' || text === 'activity' ||
+      text === 'Help' || text === '說明' || text === 'help' ||
+      text === 'New chat' || text === '新對話' || text === 'new-chat'
+    )) {
+      textEl = child;
+      break;
+    }
+  }
+
+  // Fallback 1: Any child whose text matches the cloned target's text content
+  if (!textEl) {
+    for (const child of allChildren) {
+      if (child.textContent.trim() === cloneTargetText) {
+        textEl = child;
+        break;
+      }
+    }
+  }
+
+  // Fallback 2: Look for known classes
+  if (!textEl) {
+    textEl = btn.querySelector('[class*="side-nav-entry-button-text"], [class*="button-text"]')
+      || btn.querySelector('div:last-child')
+      || btn.querySelector('span:last-child');
+  }
+
+  if (textEl) {
+    textEl.textContent = '批次刪除';
+  } else {
+    btn.textContent = '批次刪除';
+  }
 
   btn.addEventListener('click', (e) => {
     e.preventDefault();
@@ -137,11 +216,11 @@ function injectToggleButton() {
     toggleBatchMode();
   });
 
-  // Insert right after "我的內容"
-  if (myContentBtn.nextSibling) {
-    myContentBtn.parentNode.insertBefore(btn, myContentBtn.nextSibling);
+  // Insert right after the cloned button
+  if (cloneTarget.nextSibling) {
+    cloneTarget.parentNode.insertBefore(btn, cloneTarget.nextSibling);
   } else {
-    myContentBtn.parentNode.appendChild(btn);
+    cloneTarget.parentNode.appendChild(btn);
   }
 
   console.log('Gemini Web Plugin: Batch Delete button injected');
@@ -234,13 +313,16 @@ function showActionBar() {
   bar.querySelector('.gwp-btn-delete').addEventListener('click', () => handleBatchDelete());
 
   // Insert before the first conversation item
-  const firstConvo = document.querySelector('a.conversation');
+  const convos = getConversationItems();
+  const firstConvo = convos[0];
   if (firstConvo) {
     firstConvo.parentElement.insertBefore(bar, firstConvo);
   } else {
     // Fallback: append to sidebar
-    const sidebar = document.querySelector('a.conversation')?.closest('nav, aside')
-      || document.querySelector('a.conversation')?.closest('[class*="side"]')
+    const sidebar = convos[0]?.closest('nav, aside')
+      || document.querySelector('[class*="sidebar"]')
+      || document.querySelector('nav')
+      || document.querySelector('aside')
       || document.body;
     sidebar.appendChild(bar);
   }
@@ -354,6 +436,20 @@ async function deleteSingleConversation(item) {
     menuBtn = wrapper?.querySelector('button[class*="menu-button"]')
       || wrapper?.querySelector('button[aria-haspopup="menu"]');
   }
+  if (!menuBtn) {
+    // Try using aria-labels containing menu, more, 更多, 選單
+    menuBtn = item.querySelector('button[aria-label*="menu" i], button[aria-label*="more" i], button[aria-label*="更多"], button[aria-label*="選單"]')
+      || item.closest('[role="listitem"]')?.querySelector('button[aria-label*="menu" i], button[aria-label*="more" i], button[aria-label*="更多"], button[aria-label*="選單"]')
+      || item.parentElement?.querySelector('button[aria-label*="menu" i], button[aria-label*="more" i], button[aria-label*="更多"], button[aria-label*="選單"]');
+  }
+  if (!menuBtn) {
+    // Look for mat-icon or svg inside buttons in the item containing more_vert
+    const btns = Array.from(item.querySelectorAll('button'));
+    menuBtn = btns.find(b => {
+      const icon = b.querySelector('mat-icon, svg, [class*="google-symbols"]');
+      return icon && (icon.textContent.includes('more_vert') || icon.textContent.includes('more') || b.getAttribute('aria-expanded') !== null);
+    });
+  }
 
   if (!menuBtn) {
     throw new Error('Could not find 3-dot menu button');
@@ -361,24 +457,25 @@ async function deleteSingleConversation(item) {
 
   console.log('Gemini Web Plugin: Clicking menu button');
   menuBtn.click();
-  await sleep(300);
+  await sleep(400);
 
   // Step 3: Wait for dropdown menu items to appear
   // Angular CDK overlays attach to a body-level overlay container, so search globally
-  await waitForElement('.mat-mdc-menu-panel button[role="menuitem"], .mat-mdc-menu-panel .mat-mdc-menu-item, [role="menu"] [role="menuitem"]', document.body, 3000);
+  await waitForElement('.mat-mdc-menu-panel button[role="menuitem"], .mat-mdc-menu-panel .mat-mdc-menu-item, [role="menu"] [role="menuitem"], .cdk-overlay-container [role="menuitem"]', document.body, 3000);
   await sleep(300);
 
   // Step 4: Find and click the "Delete" / "刪除" menu item
   // Search globally in all overlay containers since Angular renders menus in CDK overlay
-  const allMenuItems = document.querySelectorAll('.mat-mdc-menu-panel button, .mat-mdc-menu-panel [role="menuitem"], [role="menu"] [role="menuitem"]');
+  const allMenuItems = document.querySelectorAll('.mat-mdc-menu-panel button, .mat-mdc-menu-panel [role="menuitem"], [role="menu"] [role="menuitem"], .cdk-overlay-container button, .cdk-overlay-container [role="menuitem"]');
   console.log(`Gemini Web Plugin: Found ${allMenuItems.length} menu items`);
 
   let deleteMenuItem = null;
   for (const mi of allMenuItems) {
-    // Strategy 1: Check mat-icon ligature text
-    const icons = mi.querySelectorAll('mat-icon, [class*="google-symbols"]');
+    // Strategy 1: Check mat-icon ligature text or content
+    const icons = mi.querySelectorAll('mat-icon, [class*="google-symbols"], svg');
     for (const icon of icons) {
-      if (icon.textContent.trim() === 'delete') {
+      const it = icon.textContent.trim();
+      if (it === 'delete' || it === 'delete_forever') {
         deleteMenuItem = mi;
         break;
       }
@@ -386,15 +483,22 @@ async function deleteSingleConversation(item) {
     if (deleteMenuItem) break;
 
     // Strategy 2: Check span text content
-    const spans = mi.querySelectorAll('.mat-mdc-menu-item-text, span');
+    const spans = mi.querySelectorAll('.mat-mdc-menu-item-text, span, div');
     for (const span of spans) {
       const t = span.textContent.trim();
-      if (t === '刪除' || t === 'Delete') {
+      if (t === '刪除' || t === 'Delete' || t === 'delete') {
         deleteMenuItem = mi;
         break;
       }
     }
     if (deleteMenuItem) break;
+    
+    // Strategy 3: Check raw menu item content
+    const t = mi.textContent.trim();
+    if (t.includes('刪除') || t.includes('Delete')) {
+      deleteMenuItem = mi;
+      break;
+    }
   }
 
   if (!deleteMenuItem) {
@@ -410,15 +514,15 @@ async function deleteSingleConversation(item) {
 
   console.log('Gemini Web Plugin: Clicking delete menu item');
   deleteMenuItem.click();
-  await sleep(300);
+  await sleep(400);
 
   // Step 5: Wait for confirmation dialog to fully render
-  await waitForElement('mat-dialog-container, [role="dialog"]', document.body, 3000);
+  await waitForElement('mat-dialog-container, [role="dialog"], .mat-mdc-dialog-container', document.body, 3000);
   await sleep(500); // Give Angular time to render dialog content
 
   // Step 6: Find the DELETE button in the dialog (NOT the cancel button)
   // NOTE: Gemini puts mat-primary class on the Cancel button, so we match by TEXT
-  const dialogContainers = document.querySelectorAll('mat-dialog-container, [role="dialog"], .cdk-overlay-container');
+  const dialogContainers = document.querySelectorAll('mat-dialog-container, [role="dialog"], .cdk-overlay-container, .mat-mdc-dialog-container');
   let confirmBtn = null;
 
   for (const dialog of dialogContainers) {
@@ -426,9 +530,12 @@ async function deleteSingleConversation(item) {
     for (const b of allBtns) {
       const text = b.textContent?.trim() || '';
       // Match the delete button by text, skip cancel
-      if (text === '刪除' || text === 'Delete' || text === 'delete') {
-        confirmBtn = b;
-        break;
+      if (text === '刪除' || text === 'Delete' || text === 'delete' || text.includes('刪除') || text.includes('Delete')) {
+        // Double check it's not the cancel button
+        if (!text.includes('取消') && !text.includes('Cancel') && !text.includes('cancel')) {
+          confirmBtn = b;
+          break;
+        }
       }
     }
     if (confirmBtn) break;
@@ -443,7 +550,7 @@ async function deleteSingleConversation(item) {
   confirmBtn.click();
 
   // Step 7: Wait for dialog to close
-  await waitForElementToDisappear('mat-dialog-container, [role="dialog"]', document.body, 5000);
+  await waitForElementToDisappear('mat-dialog-container, [role="dialog"], .mat-mdc-dialog-container', document.body, 5000);
   await sleep(400);
 }
 
@@ -520,9 +627,11 @@ function findScrollContainer() {
   if (messageScroller) return messageScroller;
 
   // Then look for conversation list (sidebar / my stuff)
-  const conversationScroller = allScrollable.find(el => 
-    el.querySelector('.conversation-container, a.conversation')
-  );
+  const conversationScroller = allScrollable.find(el => {
+    if (el.querySelector('.conversation-container, a.conversation')) return true;
+    const items = getConversationItems();
+    return items.some(item => el.contains(item));
+  });
   if (conversationScroller) return conversationScroller;
 
   return allScrollable[0] || document.scrollingElement || document.documentElement;

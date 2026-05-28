@@ -37,6 +37,8 @@
 #gwp-batch-toggle {
   text-decoration: none !important;
   cursor: pointer;
+  display: flex !important;
+  align-items: center !important;
 }
 
 .gwp-batch-toggle.gwp-active {
@@ -103,12 +105,12 @@
 }
 
 /* ─── Conversation Item in Batch Mode ─────────────────────────────────────── */
-a.conversation.gwp-batch-item {
+.gwp-batch-item {
   position: relative;
   padding-left: 36px !important;
 }
 
-a.conversation.gwp-selected {
+.gwp-selected {
   background: var(--gwp-blue-selected) !important;
 }
 
